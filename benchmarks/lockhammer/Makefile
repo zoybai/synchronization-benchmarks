@@ -1,5 +1,6 @@
 # override keyword overwrites make command-line option LSE_ENABLE=y, therefore it has been removed
-CFLAGS += -g -O3 -I. -I./include -I../../ext/mysql/include -I../../ext/linux/include -I../../ext/tbb/include -I../../ext/sms/base
+CFLAGS += -g -O3 -I. -I./include -I../../ext/mysql/include -I../../ext/linux/include -I../../ext/tbb/include -I../../ext/sms/base -I../../ext/gperftools
+CXXFLAGS += -g -O3 -I. -I../../ext/gperftools
 
 ifneq ($(DEBUG_LEVEL),)
 ifeq ($(shell test $(DEBUG_LEVEL) -gt 0; echo $$?),0)
@@ -34,7 +35,8 @@ TEST_TARGETS=lh_swap_mutex \
 	lh_jvm_objectmonitor \
 	lh_tbb_spin_rw_mutex \
 	lh_osq_lock \
-	lh_clh_spinlock
+	lh_clh_spinlock \
+    lh_tcmalloc_spinlock
 
 ifeq ($(TARGET_ARCH),aarch64)
 	TEST_TARGETS+=lh_hybrid_spinlock \
@@ -73,5 +75,14 @@ lh_jvm_objectmonitor: ../../ext/jvm/jvm_objectmonitor.h include/atomics.h src/lo
 lh_tbb_spin_rw_mutex: ../../ext/tbb/tbb_spin_rw_mutex.h ../../ext/tbb/include/tbb.h include/atomics.h src/lockhammer.c
 	${CC} ${CFLAGS} -DNDEBUG -DATOMIC_TEST=\"$<\" src/lockhammer.c -o build/$@ ${LDFLAGS}
 
+lh_tcmalloc_spinlock: ../../ext/gperftools/tcmalloc_spinlock.h src/lockhammer.c
+	${CXX} ${CXXFLAGS} -c ../../ext/gperftools/base/logging.cc
+	${CXX} ${CXXFLAGS} -c ../../ext/gperftools/base/sysinfo.cc
+	${CXX} ${CXXFLAGS} -c ../../ext/gperftools/base/spinlock.cc
+	${CXX} ${CXXFLAGS} -c ../../ext/gperftools/base/spinlock_internal.cc
+	${CXX} ${CXXFLAGS} -c ../../ext/gperftools/pageheap_lock.cc
+	${CC} ${CFLAGS} -DATOMIC_TEST=\"$<\" logging.o sysinfo.o spinlock.o spinlock_internal.o pageheap_lock.o src/lockhammer.c -o build/$@ ${LDFLAGS}
+
 clean:
 	rm -f build/lh_*
+	rm -f *.o
